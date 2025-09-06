@@ -111,7 +111,7 @@ async def criarfilas(ctx):
     
     for tipo, canal_id in CANAIS_FILAS.items():
         canal = bot.get_channel(canal_id)
-        if canal:
+        if canal and isinstance(canal, (discord.TextChannel, discord.DMChannel, discord.GroupChannel, discord.Thread)):
             for valor in VALORES:
                 embed = discord.Embed(
                     title=f"🎮 Fila {tipo.upper()} - R${valor},00",
@@ -126,7 +126,7 @@ async def criarfilas(ctx):
                 await canal.send(embed=embed, view=criar_botoes(tipo, valor))
                 filas_criadas += 1
         else:
-            await ctx.send(f"⚠️ Canal para {tipo} não encontrado (ID: {canal_id})")
+            await ctx.send(f"⚠️ Canal para {tipo} não encontrado ou não é um canal de texto (ID: {canal_id})")
     
     await ctx.send(f"✅ {filas_criadas} filas foram criadas!")
 
@@ -207,7 +207,7 @@ async def status(ctx):
 
 @bot.command(name="limpar")
 @commands.has_permissions(administrator=True)
-async def limpar(ctx, tipo=None, valor: int = None):
+async def limpar(ctx, tipo=None, valor=None):
     """Limpa filas específicas ou todas as filas"""
     if tipo and valor:
         if tipo in filas and valor in VALORES:
