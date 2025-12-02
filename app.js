@@ -196,9 +196,12 @@ function connectBot(server = null, port = null) {
                 log('💡 Procura pelos logs um link microsoft.com/devicelogin');
             }
             
-            // Limpar cache se detectar erro de Xbox profile
-            if (errMsg.includes('Xbox profile')) {
-                log('🔄 Detectado erro de Xbox profile - Limpando cache...');
+            // Limpar cache se detectar erro de autenticação (401, Xbox profile, UNAUTHORIZED)
+            if (errMsg.includes('Xbox profile') || 
+                errMsg.includes('401') || 
+                errMsg.includes('UNAUTHORIZED') ||
+                errMsg.includes('authentication')) {
+                log('🔄 Detectado erro de autenticação - Limpando cache...');
                 const fs = require('fs');
                 const path = require('path');
                 const authCachePath = path.join(__dirname, 'auth_cache');
@@ -206,7 +209,12 @@ function connectBot(server = null, port = null) {
                 try {
                     if (fs.existsSync(authCachePath)) {
                         fs.rmSync(authCachePath, { recursive: true, force: true });
-                        log('✅ Cache limpo! Próxima conexão vai pedir autenticação');
+                        log('✅ Cache limpo! Próxima conexão vai pedir nova autenticação');
+                        log('');
+                        log('🔐 ATENÇÃO: Verifique os logs para o código de autenticação Microsoft');
+                        log('📱 Você verá: https://microsoft.com/devicelogin');
+                        log('🔑 E um código tipo: ABCD-1234');
+                        log('');
                     }
                 } catch (e) {
                     log('⚠️ Erro ao limpar cache: ' + e.message);
