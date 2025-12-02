@@ -18,6 +18,7 @@ if (!MICROSOFT_EMAIL || !MICROSOFT_PASSWORD) {
 // Express App
 const app = express();
 const WEB_PORT = process.env.PORT || 3000;
+const START_TIME = Date.now();
 
 // Variáveis de status
 let botStatus = {
@@ -32,12 +33,60 @@ app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/api/status', (req, res) => res.json(botStatus));
 
+// Health Check - Status completo
+app.get('/health', (req, res) => {
+    const uptime = Math.floor((Date.now() - START_TIME) / 1000);
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = uptime % 60;
+    
+    const health = {
+        status: botStatus.inGame ? 'ONLINE' : (botStatus.connected ? 'CONNECTING' : 'OFFLINE'),
+        health_code: botStatus.inGame ? 200 : (botStatus.connected ? 101 : 503),
+        bot: {
+            name: BOT_NAME,
+            connected: botStatus.connected,
+            inGame: botStatus.inGame,
+            reconnectAttempts: reconnectAttempts,
+            maxAttempts: MAX_ATTEMPTS,
+            totalRestarts: botStatus.totalRestarts
+        },
+        server: {
+            address: SERVER_ADDRESS,
+            port: SERVER_PORT,
+            type: 'Bedrock Edition'
+        },
+        uptime: {
+            seconds: uptime,
+            formatted: `${hours}h ${minutes}m ${seconds}s`,
+            hours: hours,
+            minutes: minutes,
+            seconds: seconds
+        },
+        timestamps: {
+            started: new Date(START_TIME),
+            lastUpdate: botStatus.lastUpdate,
+            now: new Date()
+        },
+        info: {
+            antiAfkActive: isInGame,
+            description: botStatus.inGame ? 'Bot rodando no servidor' : 'Bot desconectado ou conectando'
+        }
+    };
+    
+    res.status(health.health_code).json(health);
+});
+
 // BOT LOGIC
 let client = null;
 let reconnectAttempts = 0;
 let isInGame = false;
 const MAX_ATTEMPTS = 15;
 const RETRY_DELAY = 10000;
+
+// Variáveis para rastrear reconexões
+let lastDisconnectTime = null;
+let lastConnectTime = null;
 
 function log(msg) {
     console.log(`>>> [BOT] ${msg}`);
@@ -64,6 +113,7 @@ function connectBot() {
             log('✓ TCP CONECTADO ao servidor');
             botStatus.connected = true;
             botStatus.lastUpdate = new Date();
+            lastConnectTime = new Date();
         });
 
         client.on('start_game', () => {
@@ -99,6 +149,7 @@ function connectBot() {
             botStatus.inGame = false;
             botStatus.connected = false;
             botStatus.lastUpdate = new Date();
+            lastDisconnectTime = new Date();
             log('❌ DESCONECTADO do servidor');
             scheduleReconnect();
         });
