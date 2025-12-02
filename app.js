@@ -5,19 +5,12 @@ const bedrock = require('bedrock-protocol');
 const BOT_NAME = process.env.BOT_NAME || 'boton';
 const REAL_SERVER = process.env.SERVER_ADDRESS || 'Crias7.aternos.me';
 const REAL_PORT = parseInt(process.env.SERVER_PORT || '19132');
-const MICROSOFT_EMAIL = process.env.MICROSOFT_EMAIL;
-const MICROSOFT_PASSWORD = process.env.MICROSOFT_PASSWORD;
 const WEB_PORT = process.env.PORT || 5000;
 
 const TEST_SERVERS = [
     { host: 'play.cubecraft.net', port: 19132 },
     { host: 'play.galaxite.net', port: 19132 },
 ];
-
-if (!MICROSOFT_EMAIL || !MICROSOFT_PASSWORD) {
-    console.log('[BOT] >>> ERRO: Configure MICROSOFT_EMAIL e MICROSOFT_PASSWORD');
-    process.exit(1);
-}
 
 const app = express();
 const START_TIME = Date.now();
@@ -163,8 +156,7 @@ function connectBot(server = null, port = null) {
             username: BOT_NAME,
             offline: false,
             auth: 'microsoft',
-            profilesFolder: './auth_cache',
-            password: MICROSOFT_PASSWORD
+            profilesFolder: './auth_cache'
         });
 
         client.on('connect', () => {
