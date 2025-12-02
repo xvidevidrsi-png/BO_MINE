@@ -198,7 +198,7 @@ function connectBot(server = null, port = null) {
             offline: false,
             auth: 'microsoft',
             profilesFolder: './auth_cache',
-            version: '1.21.50', // Versão mais recente do Minecraft Bedrock
+            // Sem versão fixa - detecta automaticamente a versão do servidor
             skipPing: false,
             onMsaCode: (data) => {
                 const authInfo = `
@@ -220,7 +220,8 @@ Tempo limite: ${Math.floor(data.expires_in / 60)} minutos
         });
 
         client.on('connect', () => {
-            log('✓ TCP CONECTADO');
+            const version = client.version || 'desconhecida';
+            log(`✓ TCP CONECTADO (Versão: ${version})`);
         });
 
         client.on('start_game', () => {
