@@ -158,6 +158,22 @@ function connectBot(server = null, port = null) {
     log(`Nome do bot: ${BOT_NAME}`);
     log(`${'-'.repeat(50)}`);
     
+    // Limpar cache antes de conectar para evitar erro 401
+    const fs = require('fs');
+    const path = require('path');
+    const authCachePath = path.join(__dirname, 'auth_cache');
+    
+    if (reconnectAttempts === 0) { // Só limpa na primeira tentativa
+        try {
+            if (fs.existsSync(authCachePath)) {
+                fs.rmSync(authCachePath, { recursive: true, force: true });
+                log('🔄 Cache limpo - solicitando nova autenticação');
+            }
+        } catch (e) {
+            log('⚠️ Não foi possível limpar cache: ' + e.message);
+        }
+    }
+    
     try {
         client = bedrock.createClient({
             host: host,
