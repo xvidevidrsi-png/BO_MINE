@@ -118,7 +118,8 @@ app.get('/', (req, res) => {
         </div>
         <div class="help">
             <p><strong>❓ Precisa autorizar?</strong></p>
-            <p>Veja os LOGS do Render para o código Microsoft</p>
+            <p><a href="/auth-code" target="_blank" style="color: #60a5fa; text-decoration: none; font-weight: bold;">📄 VER CÓDIGO DE AUTENTICAÇÃO</a></p>
+            <p style="margin-top: 10px; font-size: 0.85em; color: #888;">Ou veja os logs do Render</p>
         </div>
     </div>
 </body>
@@ -142,6 +143,19 @@ app.get('/health', (req, res) => {
 
 app.get('/ping', (req, res) => {
     res.send('pong');
+});
+
+app.get('/auth-code', (req, res) => {
+    const fs = require('fs');
+    const filePath = './public/auth-code.txt';
+    
+    if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.send(content);
+    } else {
+        res.send('Nenhum código de autenticação pendente.\n\nSe o bot pediu autenticação, espere alguns segundos e atualize esta página.');
+    }
 });
 
 function connectBot(server = null, port = null) {
@@ -175,13 +189,32 @@ function connectBot(server = null, port = null) {
     }
     
     try {
+        const fs = require('fs');
+        
         client = bedrock.createClient({
             host: host,
             port: p,
             username: BOT_NAME,
             offline: false,
             auth: 'microsoft',
-            profilesFolder: './auth_cache'
+            profilesFolder: './auth_cache',
+            onMsaCode: (data) => {
+                const authInfo = `
+🔐 AUTENTICAÇÃO NECESSÁRIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Acesse: ${data.verification_uri}
+2. Digite o código: ${data.user_code}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tempo limite: ${Math.floor(data.expires_in / 60)} minutos
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                `;
+                
+                log(authInfo);
+                
+                // Salvar em arquivo público
+                fs.writeFileSync('./public/auth-code.txt', authInfo);
+                log('📄 Código salvo em /auth-code.txt (acesse pelo navegador)');
+            }
         });
 
         client.on('connect', () => {
