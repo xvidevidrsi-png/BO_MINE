@@ -198,6 +198,8 @@ function connectBot(server = null, port = null) {
             offline: false,
             auth: 'microsoft',
             profilesFolder: './auth_cache',
+            version: '1.21.50', // Versão mais recente do Minecraft Bedrock
+            skipPing: false,
             onMsaCode: (data) => {
                 const authInfo = `
 🔐 AUTENTICAÇÃO NECESSÁRIA
