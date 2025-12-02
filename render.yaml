@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: minecraft-bedrock-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MICROSOFT_EMAIL
+        sync: false
+      - key: MICROSOFT_PASSWORD
+        sync: false
+      - key: BOT_NAME
+        value: boton
+      - key: SERVER_ADDRESS
+        value: Crias7.aternos.me
+      - key: SERVER_PORT
+        value: 19132

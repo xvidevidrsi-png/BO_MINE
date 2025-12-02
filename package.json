@@ -4,8 +4,12 @@
   "description": "Bot AFK para Minecraft Bedrock - Mantém servidor 24h online",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "node app.js"
+    "start": "node --max-old-space-size=256 app.js",
+    "dev": "node --expose-gc app.js",
+    "render": "node --max-old-space-size=256 --expose-gc app.js"
+  },
+  "engines": {
+    "node": "18.x || 20.x"
   },
   "keywords": ["minecraft", "bedrock", "afk", "bot"],
   "author": "",

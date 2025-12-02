@@ -12,6 +12,9 @@ module.exports = {
     // Configurações anti-AFK
     AFK_CHECK_INTERVAL: 60000, // 60 segundos
     
+    // Limpeza de memória (a cada 5 minutos)
+    MEMORY_CLEANUP_INTERVAL: 300000,
+    
     // Logs
     LOG_LEVEL: process.env.LOG_LEVEL || 'info'
 };

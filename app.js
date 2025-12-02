@@ -9,6 +9,7 @@ const MICROSOFT_EMAIL = config.MICROSOFT_EMAIL;
 const MICROSOFT_PASSWORD = config.MICROSOFT_PASSWORD;
 const MAX_RECONNECT_ATTEMPTS = config.MAX_RECONNECT_ATTEMPTS;
 const RECONNECT_DELAY = config.RECONNECT_DELAY;
+const MEMORY_CLEANUP_INTERVAL = config.MEMORY_CLEANUP_INTERVAL;
 
 if (!MICROSOFT_EMAIL || !MICROSOFT_PASSWORD) {
     console.error('[BOT] ❌ ERRO: MICROSOFT_EMAIL ou MICROSOFT_PASSWORD não configurados!');
@@ -18,15 +19,31 @@ if (!MICROSOFT_EMAIL || !MICROSOFT_PASSWORD) {
 
 let client = null;
 let reconnectAttempts = 0;
+let startTime = Date.now();
 
 function log(message) {
-    console.log(`[BOT] ${message}`);
+    const time = new Date().toLocaleTimeString('pt-BR');
+    console.log(`[${time}] [BOT] ${message}`);
+}
+
+function getUptime() {
+    const uptime = Math.floor((Date.now() - startTime) / 1000);
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = uptime % 60;
+    return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+function getMemoryUsage() {
+    const used = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+    const total = Math.round(process.memoryUsage().heapTotal / 1024 / 1024);
+    return `${used}MB/${total}MB`;
 }
 
 function connectBot() {
     log(`Iniciando...`);
-    log(`📋 Nome: ${BOT_NAME}`);
-    log(`🌐 Servidor: ${SERVER_ADDRESS}:${SERVER_PORT}`);
+    log(`📋 Bot: ${BOT_NAME} | Uptime: ${getUptime()} | RAM: ${getMemoryUsage()}`);
+    log(`🌐 ${SERVER_ADDRESS}:${SERVER_PORT}`);
     
     try {
         client = bedrock.createClient({
@@ -35,26 +52,36 @@ function connectBot() {
             username: MICROSOFT_EMAIL,
             offline: false,
             auth: 'microsoft',
-            profilesFolder: './auth_cache'
+            profilesFolder: './auth_cache',
+            skipValidation: true
         });
 
         client.on('connect', () => {
-            log('Conectado ao servidor!');
+            log('✅ Conectado ao servidor!');
             reconnectAttempts = 0;
         });
 
         client.on('spawn', () => {
-            log('Online.');
+            log('🟢 Online.');
             startAntiAFK();
+            startMemoryCleanup();
+            startStatusLog();
         });
 
         client.on('disconnect', (packet) => {
-            log(`Desconectado. Tentando reconectar em 20s...`);
+            log(`🔴 Desconectado. Tentando reconectar...`);
             scheduleReconnect();
         });
 
         client.on('error', (err) => {
-            log(`⚠️ Erro: ${err.message}`);
+            if (!err.message.includes('timeout')) {
+                log(`⚠️ Erro: ${err.message}`);
+            }
+            scheduleReconnect();
+        });
+
+        client.on('close', () => {
+            log(`⚠️ Conexão fechada.`);
             scheduleReconnect();
         });
 
@@ -83,6 +110,9 @@ function scheduleReconnect() {
 }
 
 let afkInterval = null;
+let memoryInterval = null;
+let statusInterval = null;
+
 function startAntiAFK() {
     if (afkInterval) clearInterval(afkInterval);
     
@@ -109,26 +139,69 @@ function startAntiAFK() {
                     }
                 }, 500);
             } catch (err) {
-                // Silently ignore
+                // Ignore
             }
         }
     }, config.AFK_CHECK_INTERVAL);
 }
 
-process.on('SIGINT', () => {
-    log('Encerrando...');
+function startMemoryCleanup() {
+    if (memoryInterval) clearInterval(memoryInterval);
+    
+    memoryInterval = setInterval(() => {
+        try {
+            if (global.gc) {
+                global.gc();
+            } else {
+                const before = process.memoryUsage().heapUsed / 1024 / 1024;
+                require('v8').writeHeapSnapshot();
+                const after = process.memoryUsage().heapUsed / 1024 / 1024;
+            }
+        } catch (err) {
+            // Ignore
+        }
+    }, MEMORY_CLEANUP_INTERVAL);
+}
+
+function startStatusLog() {
+    if (statusInterval) clearInterval(statusInterval);
+    
+    statusInterval = setInterval(() => {
+        if (client) {
+            log(`📊 Status: Online | Uptime: ${getUptime()} | RAM: ${getMemoryUsage()}`);
+        }
+    }, 600000); // A cada 10 minutos
+}
+
+function cleanup() {
+    log('🛑 Encerrando...');
     if (afkInterval) clearInterval(afkInterval);
+    if (memoryInterval) clearInterval(memoryInterval);
+    if (statusInterval) clearInterval(statusInterval);
     if (client) {
         try {
             client.disconnect();
         } catch (e) {}
     }
-    process.exit(0);
-});
+    setTimeout(() => process.exit(0), 1000);
+}
+
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
 
 process.on('uncaughtException', (err) => {
-    log(`⚠️ Erro: ${err.message}`);
+    log(`⚠️ Erro não tratado: ${err.message}`);
     scheduleReconnect();
 });
+
+process.on('unhandledRejection', (reason) => {
+    log(`⚠️ Promise rejeitada: ${reason}`);
+    scheduleReconnect();
+});
+
+// Memory warning
+if (process.memoryUsage().heapUsed > 512 * 1024 * 1024) {
+    log(`⚠️ AVISO: Uso alto de memória!`);
+}
 
 connectBot();
