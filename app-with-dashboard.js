@@ -3,37 +3,39 @@ const path = require('path');
 require('dotenv').config();
 const bedrock = require('bedrock-protocol');
 
-// Config Bot
 const BOT_NAME = process.env.BOT_NAME || 'boton';
-const SERVER_ADDRESS = process.env.SERVER_ADDRESS || 'Crias7.aternos.me';
-const SERVER_PORT = parseInt(process.env.SERVER_PORT || '19132');
+const REAL_SERVER = process.env.SERVER_ADDRESS || 'Crias7.aternos.me';
+const REAL_PORT = parseInt(process.env.SERVER_PORT || '19132');
 const MICROSOFT_EMAIL = process.env.MICROSOFT_EMAIL;
 const MICROSOFT_PASSWORD = process.env.MICROSOFT_PASSWORD;
+
+const TEST_SERVERS = [
+    { host: 'play.cubecraft.net', port: 19132 },
+    { host: 'play.galaxite.net', port: 19132 },
+];
 
 if (!MICROSOFT_EMAIL || !MICROSOFT_PASSWORD) {
     console.log('[BOT] ERRO: Configure MICROSOFT_EMAIL e MICROSOFT_PASSWORD');
     process.exit(1);
 }
 
-// Express App
 const app = express();
 const WEB_PORT = process.env.PORT || 3000;
 const START_TIME = Date.now();
 
-// Variáveis de status
 let botStatus = {
     connected: false,
     inGame: false,
     lastUpdate: new Date(),
-    totalRestarts: 0
+    totalRestarts: 0,
+    currentServer: '',
+    testMode: true
 };
 
-// Servir HTML
 app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/api/status', (req, res) => res.json(botStatus));
 
-// Health Check - Status completo
 app.get('/health', (req, res) => {
     const uptime = Math.floor((Date.now() - START_TIME) / 1000);
     const hours = Math.floor(uptime / 3600);
@@ -49,59 +51,62 @@ app.get('/health', (req, res) => {
             inGame: botStatus.inGame,
             reconnectAttempts: reconnectAttempts,
             maxAttempts: MAX_ATTEMPTS,
-            totalRestarts: botStatus.totalRestarts
+            totalRestarts: botStatus.totalRestarts,
+            testMode: testMode,
+            currentServer: botStatus.currentServer
         },
         server: {
-            address: SERVER_ADDRESS,
-            port: SERVER_PORT,
+            target: REAL_SERVER,
+            port: REAL_PORT,
             type: 'Bedrock Edition'
         },
         uptime: {
             seconds: uptime,
-            formatted: `${hours}h ${minutes}m ${seconds}s`,
-            hours: hours,
-            minutes: minutes,
-            seconds: seconds
+            formatted: `${hours}h ${minutes}m ${seconds}s`
         },
         timestamps: {
             started: new Date(START_TIME),
             lastUpdate: botStatus.lastUpdate,
             now: new Date()
-        },
-        info: {
-            antiAfkActive: isInGame,
-            description: botStatus.inGame ? 'Bot rodando no servidor' : 'Bot desconectado ou conectando'
         }
     };
     
-    res.status(health.health_code).json(health);
+    res.status(botStatus.inGame ? 200 : 503).json(health);
 });
 
-// BOT LOGIC
 let client = null;
 let reconnectAttempts = 0;
+let testMode = true;
+let testIndex = 0;
 let isInGame = false;
 const MAX_ATTEMPTS = 15;
 const RETRY_DELAY = 10000;
-
-// Variáveis para rastrear reconexões
-let lastDisconnectTime = null;
-let lastConnectTime = null;
 
 function log(msg) {
     console.log(`>>> [BOT] ${msg}`);
 }
 
-function connectBot() {
+function connectBot(server = null, port = null) {
+    const host = server || (testMode ? TEST_SERVERS[testIndex].host : REAL_SERVER);
+    const p = port || (testMode ? TEST_SERVERS[testIndex].port : REAL_PORT);
+    
+    botStatus.currentServer = host;
+    botStatus.testMode = testMode;
+    botStatus.lastUpdate = new Date();
+    
     log(`${'-'.repeat(50)}`);
-    log(`CONECTANDO ao servidor: ${SERVER_ADDRESS}:${SERVER_PORT}`);
+    if (testMode) {
+        log(`🧪 TESTANDO servidor: ${host}:${p}`);
+    } else {
+        log(`🎮 CONECTANDO ao seu servidor: ${host}:${p}`);
+    }
     log(`Nome do bot: ${BOT_NAME}`);
     log(`${'-'.repeat(50)}`);
     
     try {
         client = bedrock.createClient({
-            host: SERVER_ADDRESS,
-            port: SERVER_PORT,
+            host: host,
+            port: p,
             username: BOT_NAME,
             offline: false,
             auth: 'microsoft',
@@ -110,37 +115,18 @@ function connectBot() {
         });
 
         client.on('connect', () => {
-            log('✓ TCP CONECTADO ao servidor');
+            log('✓ TCP CONECTADO');
             botStatus.connected = true;
             botStatus.lastUpdate = new Date();
-            lastConnectTime = new Date();
         });
 
         client.on('start_game', () => {
-            isInGame = true;
-            botStatus.inGame = true;
-            botStatus.lastUpdate = new Date();
-            log('========================================');
-            log('✓✓✓ BOT ENTROU NO SERVIDOR! ✓✓✓');
-            log('========================================');
-            log('Status: JOGANDO AGORA');
-            log('========================================');
-            reconnectAttempts = 0;
-            startAntiAFK();
+            handleJoinSuccess();
         });
 
         client.on('spawn', () => {
             if (!isInGame) {
-                isInGame = true;
-                botStatus.inGame = true;
-                botStatus.lastUpdate = new Date();
-                log('========================================');
-                log('✓✓✓ BOT ENTROU NO SERVIDOR! ✓✓✓');
-                log('========================================');
-                log('Status: JOGANDO AGORA');
-                log('========================================');
-                reconnectAttempts = 0;
-                startAntiAFK();
+                handleJoinSuccess();
             }
         });
 
@@ -149,8 +135,7 @@ function connectBot() {
             botStatus.inGame = false;
             botStatus.connected = false;
             botStatus.lastUpdate = new Date();
-            lastDisconnectTime = new Date();
-            log('❌ DESCONECTADO do servidor');
+            log('❌ DESCONECTADO');
             scheduleReconnect();
         });
 
@@ -164,16 +149,47 @@ function connectBot() {
             botStatus.inGame = false;
             botStatus.connected = false;
             botStatus.lastUpdate = new Date();
-            log('❌ Conexao fechada');
             scheduleReconnect();
         });
 
     } catch (error) {
-        log('❌ FALHA ao conectar: ' + error.message);
+        log('❌ FALHA: ' + error.message);
         isInGame = false;
         botStatus.inGame = false;
         botStatus.connected = false;
         scheduleReconnect();
+    }
+}
+
+function handleJoinSuccess() {
+    isInGame = true;
+    botStatus.inGame = true;
+    botStatus.lastUpdate = new Date();
+    reconnectAttempts = 0;
+    
+    if (testMode) {
+        log('========================================');
+        log('✓ TESTE BEM-SUCEDIDO!');
+        log('========================================');
+        testMode = false;
+        botStatus.testMode = false;
+        
+        setTimeout(() => {
+            log('Desconectando do servidor de teste...');
+            try { client.disconnect(); } catch(e) {}
+            setTimeout(() => {
+                log('Agora conectando ao seu servidor...');
+                connectBot(REAL_SERVER, REAL_PORT);
+            }, 2000);
+        }, 3000);
+    } else {
+        log('========================================');
+        log('✓✓✓ BOT ENTROU NO SEU SERVIDOR! ✓✓✓');
+        log('========================================');
+        log('Status: JOGANDO AGORA');
+        log(`Servidor: ${REAL_SERVER}:${REAL_PORT}`);
+        log('========================================');
+        startAntiAFK();
     }
 }
 
@@ -182,17 +198,21 @@ function scheduleReconnect() {
         botStatus.totalRestarts++;
         log(`${'-'.repeat(50)}`);
         log('⚠ Maximo de tentativas atingido');
-        log('Esperando 3 minutos antes de tentar novamente...');
+        log('Esperando 3 minutos...');
         log(`${'-'.repeat(50)}`);
         setTimeout(() => {
             reconnectAttempts = 0;
+            testIndex = 0;
+            testMode = true;
+            botStatus.testMode = true;
             connectBot();
         }, 180000);
         return;
     }
 
     reconnectAttempts++;
-    log(`Reconectando... (${reconnectAttempts}/${MAX_ATTEMPTS}) em 10s`);
+    const server = testMode ? TEST_SERVERS[testIndex].host : REAL_SERVER;
+    log(`Reconectando em 10s... (${reconnectAttempts}/${MAX_ATTEMPTS}) - ${server}`);
     setTimeout(connectBot, RETRY_DELAY);
 }
 
@@ -201,7 +221,7 @@ let antiAfkInterval = null;
 function startAntiAFK() {
     if (antiAfkInterval) clearInterval(antiAfkInterval);
     
-    log('Anti-AFK: Ativado (mexendo cabeca a cada 50s)');
+    log('Anti-AFK: Ativado (agachando a cada 50s)');
     
     antiAfkInterval = setInterval(() => {
         if (!client || !isInGame) return;
@@ -228,17 +248,19 @@ function startAntiAFK() {
                     }
                 } catch (e) {}
             }, 300);
-            
         } catch (e) {}
     }, 50000);
 }
 
-// Start
 console.log('\n🤖 Minecraft Bedrock Bot + Dashboard\n');
-console.log(`📊 Dashboard: http://localhost:${WEB_PORT}\n`);
+console.log('📋 FLUXO:');
+console.log('1. Testa conexão em servidor público');
+console.log('2. Se OK, conecta no seu servidor');
+console.log(`\n📊 Dashboard: http://localhost:${WEB_PORT}\n`);
 
 app.listen(WEB_PORT, () => {
-    log(`Dashboard web iniciado na porta ${WEB_PORT}`);
+    log(`Dashboard iniciado na porta ${WEB_PORT}`);
+    log(`Health check: http://localhost:${WEB_PORT}/health`);
     setTimeout(() => connectBot(), 1000);
 });
 
@@ -249,4 +271,9 @@ process.on('SIGINT', () => {
         try { client.disconnect(); } catch (e) {}
     }
     process.exit(0);
+});
+
+process.on('uncaughtException', (err) => {
+    log('Erro: ' + err.message);
+    scheduleReconnect();
 });
