@@ -1,15 +1,17 @@
 {
-  "name": "workspace",
+  "name": "minecraft-bedrock-afk-bot",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Bot AFK para Minecraft Bedrock - Mantém servidor 24h online",
+  "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node app.js",
+    "dev": "node app.js"
   },
-  "keywords": [],
+  "keywords": ["minecraft", "bedrock", "afk", "bot"],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "bedrock-protocol": "^3.51.0"
+    "bedrock-protocol": "^3.51.0",
+    "dotenv": "^16.3.1"
   }
 }
