@@ -1,21 +1,23 @@
 require('dotenv').config();
 const bedrock = require('bedrock-protocol');
+const config = require('./config');
 
-const BOT_NAME = process.env.BOT_NAME || 'boton';
-const SERVER_ADDRESS = process.env.SERVER_ADDRESS || 'localhost';
-const SERVER_PORT = parseInt(process.env.SERVER_PORT || '19132');
-const MICROSOFT_EMAIL = process.env.MICROSOFT_EMAIL;
-const MICROSOFT_PASSWORD = process.env.MICROSOFT_PASSWORD;
+const BOT_NAME = config.BOT_NAME;
+const SERVER_ADDRESS = config.SERVER_ADDRESS;
+const SERVER_PORT = config.SERVER_PORT;
+const MICROSOFT_EMAIL = config.MICROSOFT_EMAIL;
+const MICROSOFT_PASSWORD = config.MICROSOFT_PASSWORD;
+const MAX_RECONNECT_ATTEMPTS = config.MAX_RECONNECT_ATTEMPTS;
+const RECONNECT_DELAY = config.RECONNECT_DELAY;
 
 if (!MICROSOFT_EMAIL || !MICROSOFT_PASSWORD) {
     console.error('[BOT] ❌ ERRO: MICROSOFT_EMAIL ou MICROSOFT_PASSWORD não configurados!');
+    console.error('[BOT] Configure o arquivo .env com suas credenciais.');
     process.exit(1);
 }
 
 let client = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 20000;
 
 function log(message) {
     console.log(`[BOT] ${message}`);
@@ -110,7 +112,7 @@ function startAntiAFK() {
                 // Silently ignore
             }
         }
-    }, 60000);
+    }, config.AFK_CHECK_INTERVAL);
 }
 
 process.on('SIGINT', () => {
