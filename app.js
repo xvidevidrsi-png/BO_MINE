@@ -196,6 +196,23 @@ function connectBot(server = null, port = null) {
                 log('💡 Procura pelos logs um link microsoft.com/devicelogin');
             }
             
+            // Limpar cache se detectar erro de Xbox profile
+            if (errMsg.includes('Xbox profile')) {
+                log('🔄 Detectado erro de Xbox profile - Limpando cache...');
+                const fs = require('fs');
+                const path = require('path');
+                const authCachePath = path.join(__dirname, 'auth_cache');
+                
+                try {
+                    if (fs.existsSync(authCachePath)) {
+                        fs.rmSync(authCachePath, { recursive: true, force: true });
+                        log('✅ Cache limpo! Próxima conexão vai pedir autenticação');
+                    }
+                } catch (e) {
+                    log('⚠️ Erro ao limpar cache: ' + e.message);
+                }
+            }
+            
             scheduleReconnect();
         });
 
