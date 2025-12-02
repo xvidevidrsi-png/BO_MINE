@@ -9,7 +9,6 @@ const WEB_PORT = process.env.PORT || 5000;
 
 const TEST_SERVERS = [
     { host: 'play.cubecraft.net', port: 19132 },
-    { host: 'play.galaxite.net', port: 19132 },
 ];
 
 const app = express();
@@ -18,7 +17,6 @@ const START_TIME = Date.now();
 let client = null;
 let reconnectAttempts = 0;
 let testMode = true;
-let testIndex = 0;
 let isInGame = false;
 let currentServer = '';
 const MAX_ATTEMPTS = 15;
@@ -62,7 +60,7 @@ app.get('/', (req, res) => {
             text-align: center;
             backdrop-filter: blur(10px);
             box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-            max-width: 400px;
+            max-width: 500px;
             width: 90%;
         }
         h1 { font-size: 2.5em; margin-bottom: 10px; }
@@ -92,6 +90,14 @@ app.get('/', (req, res) => {
             border-radius: 8px;
             font-size: 0.85em;
         }
+        .help {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+            text-align: left;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -110,6 +116,10 @@ app.get('/', (req, res) => {
         <div class="ping">
             ✅ Ping OK - ${new Date().toLocaleTimeString('pt-BR')}
         </div>
+        <div class="help">
+            <p><strong>❓ Precisa autorizar?</strong></p>
+            <p>Veja os LOGS do Render para o código Microsoft</p>
+        </div>
     </div>
 </body>
 </html>
@@ -124,7 +134,6 @@ app.get('/health', (req, res) => {
         bot: BOT_NAME,
         server: currentServer || REAL_SERVER,
         inGame: isInGame,
-        testMode: testMode,
         uptime: uptime,
         reconnects: reconnectAttempts,
         timestamp: new Date().toISOString()
@@ -136,15 +145,15 @@ app.get('/ping', (req, res) => {
 });
 
 function connectBot(server = null, port = null) {
-    const host = server || (testMode ? TEST_SERVERS[testIndex].host : REAL_SERVER);
-    const p = port || (testMode ? TEST_SERVERS[testIndex].port : REAL_PORT);
+    const host = server || (testMode ? TEST_SERVERS[0].host : REAL_SERVER);
+    const p = port || (testMode ? TEST_SERVERS[0].port : REAL_PORT);
     currentServer = host;
     
     log(`${'-'.repeat(50)}`);
     if (testMode) {
-        log(`🧪 TESTANDO servidor: ${host}:${p}`);
+        log(`🧪 Testando conexão: ${host}:${p}`);
     } else {
-        log(`🎮 CONECTANDO ao seu servidor: ${host}:${p}`);
+        log(`🎮 Conectando ao seu servidor: ${host}:${p}`);
     }
     log(`Nome do bot: ${BOT_NAME}`);
     log(`${'-'.repeat(50)}`);
@@ -180,7 +189,13 @@ function connectBot(server = null, port = null) {
         });
 
         client.on('error', (err) => {
-            log('❌ ERRO: ' + err.message);
+            const errMsg = err.message || String(err);
+            log('❌ ERRO: ' + errMsg);
+            
+            if (errMsg.includes('device')) {
+                log('💡 Procura pelos logs um link microsoft.com/devicelogin');
+            }
+            
             scheduleReconnect();
         });
 
@@ -202,15 +217,14 @@ function handleJoinSuccess() {
     
     if (testMode) {
         log('========================================');
-        log('✓ TESTE BEM-SUCEDIDO!');
+        log('✓ CONEXÃO BEM-SUCEDIDA');
         log('========================================');
         testMode = false;
         
         setTimeout(() => {
-            log('Desconectando do servidor de teste...');
+            log('Conectando ao seu servidor agora...');
             try { client.disconnect(); } catch(e) {}
             setTimeout(() => {
-                log('Agora conectando ao seu servidor...');
                 connectBot(REAL_SERVER, REAL_PORT);
             }, 2000);
         }, 3000);
@@ -218,8 +232,8 @@ function handleJoinSuccess() {
         log('========================================');
         log('✓✓✓ BOT ENTROU NO SEU SERVIDOR! ✓✓✓');
         log('========================================');
-        log('Status: JOGANDO AGORA');
         log(`Servidor: ${REAL_SERVER}:${REAL_PORT}`);
+        log('Status: JOGANDO 24/7');
         log('========================================');
         currentServer = REAL_SERVER;
         startAntiAFK();
@@ -229,12 +243,11 @@ function handleJoinSuccess() {
 function scheduleReconnect() {
     if (reconnectAttempts >= MAX_ATTEMPTS) {
         log(`${'-'.repeat(50)}`);
-        log('⚠ Maximo de tentativas atingido');
-        log('Esperando 3 minutos...');
+        log('⚠ Máximo de tentativas atingido');
+        log('Aguardando 3 minutos...');
         log(`${'-'.repeat(50)}`);
         setTimeout(() => {
             reconnectAttempts = 0;
-            testIndex = 0;
             testMode = true;
             connectBot();
         }, 180000);
@@ -242,8 +255,8 @@ function scheduleReconnect() {
     }
 
     reconnectAttempts++;
-    const server = testMode ? TEST_SERVERS[testIndex].host : REAL_SERVER;
-    log(`Reconectando em 10s... (${reconnectAttempts}/${MAX_ATTEMPTS}) - ${server}`);
+    const server = testMode ? TEST_SERVERS[0].host : REAL_SERVER;
+    log(`Reconectando em 10s... (${reconnectAttempts}/${MAX_ATTEMPTS})`);
     setTimeout(connectBot, RETRY_DELAY);
 }
 
@@ -252,7 +265,7 @@ let antiAfkInterval = null;
 function startAntiAFK() {
     if (antiAfkInterval) clearInterval(antiAfkInterval);
     
-    log('Anti-AFK: Ativado (agachando a cada 50s)');
+    log('Anti-AFK: Ativado ✓');
     
     antiAfkInterval = setInterval(() => {
         if (!client || !isInGame) return;
@@ -300,13 +313,14 @@ process.on('uncaughtException', (err) => {
 });
 
 console.log('\n🤖 Minecraft Bedrock Bot\n');
-console.log('📋 FLUXO:');
-console.log('1. Testa conexão em servidor público');
-console.log('2. Se OK, conecta no seu servidor\n');
+console.log('📡 Autenticando com Microsoft...\n');
 
 app.listen(WEB_PORT, '0.0.0.0', () => {
-    log(`📊 Página web: http://localhost:${WEB_PORT}`);
-    log(`🔗 Health check: http://localhost:${WEB_PORT}/health`);
+    log(`📊 Dashboard: http://localhost:${WEB_PORT}`);
+    log(`🔗 Health: http://localhost:${WEB_PORT}/health`);
     log(`📡 Ping: http://localhost:${WEB_PORT}/ping`);
-    setTimeout(() => connectBot(), 1000);
+    setTimeout(() => {
+        log('\nIniciando bot...\n');
+        connectBot();
+    }, 1000);
 });
