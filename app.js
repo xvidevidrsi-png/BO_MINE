@@ -193,15 +193,16 @@ function connectBot(server = null, port = null) {
             log('❌ ERRO: ' + errMsg);
             
             if (errMsg.includes('device')) {
-                log('💡 Procura pelos logs um link microsoft.com/devicelogin');
+                log('💡 Procure pelos logs um link microsoft.com/devicelogin');
             }
             
             // Limpar cache se detectar erro de autenticação (401, Xbox profile, UNAUTHORIZED)
             if (errMsg.includes('Xbox profile') || 
                 errMsg.includes('401') || 
                 errMsg.includes('UNAUTHORIZED') ||
+                errMsg.includes('Unauthorized') ||
                 errMsg.includes('authentication')) {
-                log('🔄 Detectado erro de autenticação - Limpando cache...');
+                log('🔄 Detectado erro de autenticação 401 - Limpando cache...');
                 const fs = require('fs');
                 const path = require('path');
                 const authCachePath = path.join(__dirname, 'auth_cache');
@@ -209,12 +210,17 @@ function connectBot(server = null, port = null) {
                 try {
                     if (fs.existsSync(authCachePath)) {
                         fs.rmSync(authCachePath, { recursive: true, force: true });
-                        log('✅ Cache limpo! Próxima conexão vai pedir nova autenticação');
+                        log('✅ Cache de autenticação removido!');
                         log('');
-                        log('🔐 ATENÇÃO: Verifique os logs para o código de autenticação Microsoft');
-                        log('📱 Você verá: https://microsoft.com/devicelogin');
-                        log('🔑 E um código tipo: ABCD-1234');
+                        log('🔐 PRÓXIMOS PASSOS:');
+                        log('1. O bot vai pedir autenticação novamente');
+                        log('2. Procure nos logs por: https://microsoft.com/devicelogin');
+                        log('3. Copie o código que aparecer (ex: ABCD-1234)');
+                        log('4. Cole no site da Microsoft');
+                        log('5. Autorize o acesso');
                         log('');
+                    } else {
+                        log('⚠️ Cache não encontrado, será criado na próxima autenticação');
                     }
                 } catch (e) {
                     log('⚠️ Erro ao limpar cache: ' + e.message);
