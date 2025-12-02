@@ -24,7 +24,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node bot.js"
+args = "node app.js"
 
 [workflows.workflow.metadata]
 outputType = "console"
